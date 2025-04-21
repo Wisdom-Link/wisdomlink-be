@@ -6,12 +6,14 @@ export interface UserLoginBody {
   export interface UserRegisterBody {
     username: string;
     password: string;
-    email: string;
+    gender: 'male' | 'female';
+    birthday:Date;
   }
   
   export interface UserInfo {
-    id: number;
     username: string;
-    email: string;
+    motto:string;
+    gender:'male' | 'female';
+    Taps:string;
   }
   
