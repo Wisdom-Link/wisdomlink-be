@@ -1,13 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
+import { UserRegisterBody } from '../../types/user'
 import User from '../../models/user'; 
 import bcrypt from 'bcrypt';
-
-export interface UserRegisterBody {
-  username: string;
-  password: string;
-  gender: 'male' | 'female';
-  birthday: Date;
-}
 
 const registerRoute: FastifyPluginAsync = async (fastify) => {
   fastify.post<{

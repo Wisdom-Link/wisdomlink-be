@@ -30,10 +30,20 @@ const userSchema = new mongoose.Schema({
     type: [String], // 数组，存储多个标签
     default: [],    // 默认是空数组
   },
+  level: { 
+    type: Number, 
+    default: 0, // 默认头像为空字符串
+  },
   avatar: { 
     type: String, 
     default: '', // 默认头像为空字符串
   },
+  chats: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Chat'
+    }
+  ]
 }, {
   timestamps: true,  // 自动创建 createdAt 和 updatedAt 字段
 });

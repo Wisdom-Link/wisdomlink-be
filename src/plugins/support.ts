@@ -1,3 +1,4 @@
+import 'fastify'
 import fp from 'fastify-plugin'
 
 export interface SupportPluginOptions {
@@ -14,7 +15,7 @@ export default fp<SupportPluginOptions>(async (fastify, opts) => {
 
 // When using .decorate you have to specify added properties for Typescript
 declare module 'fastify' {
-  export interface FastifyInstance {
-    someSupport(): string;
+  interface FastifyInstance {
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
   }
 }

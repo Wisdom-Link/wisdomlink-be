@@ -10,10 +10,12 @@ export interface UserLoginBody {
     birthday:Date;
   }
   
-  export interface UserInfo {
+  export interface userInfo {
     username: string;
     motto:string;
     gender:'male' | 'female';
-    Taps:string;
+    taps:string[];
+    level:number;
+    avatar:string;
   }
   

@@ -1,11 +1,39 @@
 import { FastifyPluginAsync } from 'fastify';
-// import { UserInfo } from '../../types/user';
+import { userInfo } from '../../types/user';
+import User from '../../models/user'; 
 
 const getInfoRoute: FastifyPluginAsync = async (fastify) => {
-  
-  fastify.get('/getInfo', async (request, reply) => {
-    reply.send({ id: 1, username: '张三', email: 'zhangsan@example.com' });
+  fastify.get('/getInfo', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      // 假设你用 JWT 解码后，把用户 id 存在了 request.user.id
+      const userId = (request.user as any)?.userId; // ✅ 字段要一致
+
+      if (!userId) {
+        return reply.status(401).send({ message: '未登录或 token 无效' });
+      }
+
+      const user = await User.findById(userId).lean();
+
+      if (!user) {
+        return reply.status(404).send({ message: '用户不存在' });
+      }
+
+      const result: userInfo = {
+        username: user.username,
+        motto: user.motto || '',
+        gender: user.gender,
+        taps: user.taps,
+        level: user.level || 1,
+        avatar: user.avatar || '',
+      };
+
+      reply.send(result);
+    } catch (error) {
+      fastify.log.error(error);
+      reply.status(500).send({ message: '服务器错误' });
+    }
   });
 };
 
 export default getInfoRoute;
+

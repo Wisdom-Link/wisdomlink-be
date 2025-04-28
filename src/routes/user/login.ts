@@ -25,19 +25,18 @@ const loginRoute: FastifyPluginAsync = async (fastify) => {
       }
 
       // 登录成功（可选：生成 token）
-      // const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET!, { expiresIn: '1d' })
-
+      const token = fastify.jwt.sign(
+        { userId: user._id },
+        { expiresIn: '30d' } // 30 天有效期
+      );
+      
       return reply.send({
         message: '登录成功',
         user: {
           id: user._id,
           username: user.username,
-          gender: user.gender,
-          birthday: user.birthday,
-          motto: user.motto,
-          avatar: user.avatar,
         },
-        // token // 如果你后续要支持 token 登录
+        token // 如果你后续要支持 token 登录
       })
     } catch (err) {
       request.log.error(err)
