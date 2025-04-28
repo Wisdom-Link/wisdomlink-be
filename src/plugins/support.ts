@@ -1,5 +1,6 @@
 import 'fastify'
 import fp from 'fastify-plugin'
+import OpenAI from 'openai';
 
 export interface SupportPluginOptions {
   // Specify Support plugin options here
@@ -17,5 +18,6 @@ export default fp<SupportPluginOptions>(async (fastify, opts) => {
 declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
+    openai: OpenAI;
   }
 }
