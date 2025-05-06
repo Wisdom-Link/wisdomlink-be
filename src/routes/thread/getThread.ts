@@ -4,13 +4,13 @@ import Thread from '../../models/thread';
 const getThreadRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get('/getThread', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     try {
-      const { threadId } = request.query as { threadId?: string };
+      const { subject } = request.query as { subject?: string };
 
-      if (!threadId) {
-        return reply.status(400).send({ message: '缺少 threadId' });
+      if (!subject) {
+        return reply.status(400).send({ message: '缺少 subject' });
       }
 
-      const thread = await Thread.findOne({ threadId }).lean();
+      const thread = await Thread.findOne({ subject }).lean();
 
       if (!thread) {
         return reply.status(404).send({ message: '帖子不存在' });

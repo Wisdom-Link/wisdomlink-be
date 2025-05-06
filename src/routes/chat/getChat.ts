@@ -1,18 +1,17 @@
 import { FastifyPluginAsync } from 'fastify';
-import { ChatId } from '../../types/chat';
 import Chat from '../../models/chat';
 
 const getChatRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get('/getChat', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     try {
-      // chatId 从 query 获取
-      const { chatId } = request.query as ChatId;
+      // _id 从 query 获取
+      const { _id } = request.query as { _id?: string };
 
-      if (!chatId) {
-        return reply.status(400).send({ message: '缺少 chatId' });
+      if (!_id) {
+        return reply.status(400).send({ message: '缺少 _id' });
       }
 
-      const chat = await Chat.findOne({ chatId }).populate('userIds', 'username avatar').lean();
+      const chat = await Chat.findById(_id).populate('userIds', 'username avatar').lean();
 
       if (!chat) {
         return reply.status(404).send({ message: '对话不存在' });

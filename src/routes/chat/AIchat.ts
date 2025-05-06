@@ -1,7 +1,7 @@
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 const chatRoute: FastifyPluginAsync = async (fastify) => {
-  fastify.post('/chat', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/AIchat',{ onRequest: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { messages } = request.body as { messages?: any[] };
 

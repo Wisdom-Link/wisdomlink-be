@@ -1,11 +1,6 @@
 import mongoose from 'mongoose';
 
 const threadSchema = new mongoose.Schema({
-  threadId: {
-    type: String,
-    required: true,
-    unique: true
-  },
   subject: {
     type: String,
     required: true

@@ -8,8 +8,8 @@ const saveChatRoute: FastifyPluginAsync = async (fastify) => {
     try {
       const chatData = request.body as ChatType;
 
-      // 查找是否已存在 chatId
-      let chat = await Chat.findOne({ chatId: chatData.chatId });
+      // 如果有 _id 则查找并更新，否则新建
+      let chat = chatData._id ? await Chat.findById(chatData._id) : null;
 
       const messages = chatData.messages.map(msg => ({
         sender: new mongoose.Types.ObjectId(msg.sender),
@@ -21,12 +21,11 @@ const saveChatRoute: FastifyPluginAsync = async (fastify) => {
         // 已存在则更新
         chat.imageUrl = chatData.imageUrl || chat.imageUrl;
         chat.userIds = chatData.userIds.map(userId => new mongoose.Types.ObjectId(userId));
-        chat.set('messages', messages, { strict: true }); // 使用 set 方法
+        chat.set('messages', messages, { strict: true });
         await chat.save();
       } else {
         // 不存在则新建
         chat = new Chat({
-          chatId: chatData.chatId,
           imageUrl: chatData.imageUrl,
           userIds: chatData.userIds.map(userId => new mongoose.Types.ObjectId(userId)),
           messages
@@ -34,7 +33,7 @@ const saveChatRoute: FastifyPluginAsync = async (fastify) => {
         await chat.save();
       }
 
-      reply.send({ message: '对话保存成功', chat });
+      reply.send({ message: '对话保存成功', chat, _id: chat._id });
     } catch (error) {
       fastify.log.error(error);
       reply.status(500).send({ message: '服务器错误' });

@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import chatRoute from './chat'; 
+import chatRoute from './AIchat'; 
 import getChatRoute from './getChat';
 import saveChatRoute from './saveChat';
 

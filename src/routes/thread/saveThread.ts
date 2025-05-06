@@ -2,14 +2,13 @@ import { FastifyPluginAsync } from 'fastify';
 import Thread from '../../models/thread';
 
 const saveThreadRoute: FastifyPluginAsync = async (fastify) => {
-  fastify.post('/saveThread', async (request, reply) => {
+  fastify.post('/saveThread',{ onRequest: [fastify.authenticate] }, async (request, reply) => {
     try {
       // 从请求体获取帖子属性
-      const { threadId, subject, content, userId, createdAt, location, tags } = request.body as any;
+      const { subject, content, userId, createdAt, location, tags } = request.body as any;
 
-      // 创建帖子文档
+      // 创建帖子文档（不再包含 threadId）
       const thread = new Thread({
-        threadId,
         subject,
         content,
         userId,

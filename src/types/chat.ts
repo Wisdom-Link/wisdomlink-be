@@ -5,7 +5,7 @@ export interface ChatMessage {
 }
 
 export interface Chat {
-    chatId: string;
+    _id: string;
     imageUrl?: string;
     userIds: string[]; // 用户id数组
     messages: ChatMessage[];

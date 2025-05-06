@@ -1,11 +1,6 @@
 import mongoose from 'mongoose';
 
 const chatSchema = new mongoose.Schema({
-  chatId: {
-    type: String,
-    required: true,
-    unique: true
-  },
   imageUrl: {
     type: String,
     default: ''
@@ -20,7 +15,8 @@ const chatSchema = new mongoose.Schema({
     {
       sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
       content: { type: String, required: true },
-      timestamp: { type: Date, default: Date.now }
+      timestamp: { type: Date, default: Date.now },
+      _id: false 
     }
   ]
 }, {

@@ -7,6 +7,9 @@ const getInfoRoute: FastifyPluginAsync = async (fastify) => {
     try {
       // 假设你用 JWT 解码后，把用户 id 存在了 request.user.id
       const userId = (request.user as any)?.userId; // ✅ 字段要一致
+      console.log('🌟 userId from request.user:', (request.user as any)?.userId)
+
+
 
       if (!userId) {
         return reply.status(401).send({ message: '未登录或 token 无效' });

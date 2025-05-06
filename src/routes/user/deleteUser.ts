@@ -2,7 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import User from '../../models/user';
 
 const deleteUserRoute: FastifyPluginAsync = async (fastify) => {
-  fastify.delete('/deleteUser', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+  fastify.delete('/deleteUser', async (request, reply) => {
     try {
       // 从请求体中获取用户名
       const { username } = request.body as { username?: string };
