@@ -12,10 +12,13 @@ export interface UserLoginBody {
   
   export interface userInfo {
     username: string;
-    motto:string;
-    gender:'male' | 'female';
-    taps:string[];
-    level:number;
-    avatar:string;
+    motto: string;
+    gender: string;
+    avatar: string;
+    taps: string[];
+    level: number;
+    questionCount?: number; // Added questionCount property
+    answerCount?: number; // Added answerCount property
+    highQualityAnswerCount?: number; // Added highQualityAnswerCount property
   }
   

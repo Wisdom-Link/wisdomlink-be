@@ -34,6 +34,19 @@ const userSchema = new mongoose.Schema({
     type: Number, 
     default: 0, // 默认头像为空字符串
   },
+  // 新增字段
+  questionCount: {
+    type: Number,
+    default: 0
+  },
+  answerCount: {
+    type: Number,
+    default: 0
+  },
+  highQualityAnswerCount: {
+    type: Number,
+    default: 0
+  },
   avatar: { 
     type: String, 
     default: '', // 默认头像为空字符串

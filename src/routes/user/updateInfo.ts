@@ -13,7 +13,7 @@ const updateInfoRoute: FastifyPluginAsync = async (fastify) => {
         return reply.status(401).send({ message: '未登录或 token 无效' });
       }
 
-      const { username, motto, gender, avatar, taps, level } = request.body;
+      const { username, motto, gender, avatar, taps, level, questionCount, answerCount, highQualityAnswerCount } = request.body;
 
       const updatedUser = await User.findByIdAndUpdate(
         userId,
@@ -23,7 +23,10 @@ const updateInfoRoute: FastifyPluginAsync = async (fastify) => {
           gender,
           avatar,
           taps,
-          level
+          level,
+          questionCount,
+          answerCount,
+          highQualityAnswerCount
         },
         { new: true, lean: true } // new: true 表示返回更新后的文档
       );
@@ -38,7 +41,10 @@ const updateInfoRoute: FastifyPluginAsync = async (fastify) => {
         gender: updatedUser.gender || 'unknown',
         taps: updatedUser.taps || [],
         level: updatedUser.level || 1,
-        avatar: updatedUser.avatar || ''
+        avatar: updatedUser.avatar || '',
+        questionCount: updatedUser.questionCount || 0,
+        answerCount: updatedUser.answerCount || 0,
+        highQualityAnswerCount: updatedUser.highQualityAnswerCount || 0
       };
 
       reply.send(result);

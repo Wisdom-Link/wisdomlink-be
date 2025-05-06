@@ -28,6 +28,9 @@ const getInfoRoute: FastifyPluginAsync = async (fastify) => {
         taps: user.taps,
         level: user.level || 1,
         avatar: user.avatar || '',
+        questionCount: user.questionCount || 0,
+        answerCount: user.answerCount || 0,
+        highQualityAnswerCount: user.highQualityAnswerCount || 0
       };
 
       reply.send(result);
