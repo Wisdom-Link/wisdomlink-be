@@ -18,6 +18,10 @@ const threadSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  community: {
+    type: String,
+    required: true
+  },
   location: {
     type: String,
     default: ''

@@ -5,7 +5,7 @@ const saveThreadRoute: FastifyPluginAsync = async (fastify) => {
   fastify.post('/saveThread',{ onRequest: [fastify.authenticate] }, async (request, reply) => {
     try {
       // 从请求体获取帖子属性
-      const { subject, content, userId, createdAt, location, tags } = request.body as any;
+      const { subject, content, userId, createdAt, location, tags, community } = request.body as any;
 
       // 创建帖子文档（不再包含 threadId）
       const thread = new Thread({
@@ -14,7 +14,8 @@ const saveThreadRoute: FastifyPluginAsync = async (fastify) => {
         userId,
         createdAt,
         location,
-        tags
+        tags,
+        community
       });
 
       // 保存到数据库

@@ -10,6 +10,7 @@ export interface Thread {
   createdAt?: Date;
   location?: string;
   tags?: string[];
+  community: string;
 }
 
 export interface ThreadSearch {

@@ -9,8 +9,6 @@ const getInfoRoute: FastifyPluginAsync = async (fastify) => {
       const userId = (request.user as any)?.userId; // ✅ 字段要一致
       console.log('🌟 userId from request.user:', (request.user as any)?.userId)
 
-
-
       if (!userId) {
         return reply.status(401).send({ message: '未登录或 token 无效' });
       }
