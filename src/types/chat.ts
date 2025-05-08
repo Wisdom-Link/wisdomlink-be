@@ -7,7 +7,10 @@ export interface ChatMessage {
 export interface Chat {
     _id: string;
     imageUrl?: string;
-    userIds: string[]; // 用户id数组
+    questionUserId: string; // 问问题的用户id
+    answerUserId: string;   // 答问题的用户id
+    tap: string;           // 标签，单个
+    subject: string;       // 标题
     messages: ChatMessage[];
     createdAt?: Date;
     updatedAt?: Date;

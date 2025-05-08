@@ -20,14 +20,20 @@ const saveChatRoute: FastifyPluginAsync = async (fastify) => {
       if (chat) {
         // 已存在则更新
         chat.imageUrl = chatData.imageUrl || chat.imageUrl;
-        chat.userIds = chatData.userIds.map(userId => new mongoose.Types.ObjectId(userId));
+        chat.questionUserId = new mongoose.Types.ObjectId(chatData.questionUserId);
+        chat.answerUserId = new mongoose.Types.ObjectId(chatData.answerUserId);
+        chat.tap = chatData.tap || '';
+        chat.subject = chatData.subject || '';
         chat.set('messages', messages, { strict: true });
         await chat.save();
       } else {
         // 不存在则新建
         chat = new Chat({
           imageUrl: chatData.imageUrl,
-          userIds: chatData.userIds.map(userId => new mongoose.Types.ObjectId(userId)),
+          questionUserId: new mongoose.Types.ObjectId(chatData.questionUserId),
+          answerUserId: new mongoose.Types.ObjectId(chatData.answerUserId),
+          tap: chatData.tap || '',
+          subject: chatData.subject || '',
           messages
         });
         await chat.save();

@@ -51,10 +51,22 @@ const userSchema = new mongoose.Schema({
     type: String, 
     default: '', // 默认头像为空字符串
   },
-  chats: [
+  questionChats: [
     {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Chat'
+    }
+  ],
+  answerChats: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Chat'
+    }
+  ],
+  posts: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Thread'
     }
   ]
 }, {

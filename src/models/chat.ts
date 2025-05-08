@@ -5,11 +5,23 @@ const chatSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  userIds: {
-    type: [mongoose.Schema.Types.ObjectId],
+  questionUserId: {
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    validate: [(arr: mongoose.Schema.Types.ObjectId[]) => arr.length === 2, '必须有两个用户id']
+    required: true
+  },
+  answerUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  tap: {
+    type: String,
+    default: ''
+  },
+  subject: {
+    type: String,
+    default: ''
   },
   messages: [
     {

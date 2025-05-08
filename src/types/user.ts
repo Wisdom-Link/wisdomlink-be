@@ -17,8 +17,18 @@ export interface UserLoginBody {
     avatar: string;
     taps: string[];
     level: number;
-    questionCount?: number; // Added questionCount property
-    answerCount?: number; // Added answerCount property
-    highQualityAnswerCount?: number; // Added highQualityAnswerCount property
+    questionCount?: number; 
+    answerCount?: number; 
+    highQualityAnswerCount?: number; 
+    questionChats?: string[]; // Chat _id 数组
+    answerChats?: string[];   // Chat _id 数组
+    posts?: string[];         // Thread _id 数组
   }
   
+  export interface updateInfo {
+    username: string;
+    motto: string;
+    gender: string;
+    avatar: string;
+    taps: string[];
+  }
