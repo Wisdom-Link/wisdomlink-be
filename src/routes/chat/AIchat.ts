@@ -10,43 +10,27 @@ const chatRoute: FastifyPluginAsync = async (fastify) => {
         return;
       }
 
-      let stream;
       try {
-        stream = await fastify.openai.chat.completions.create({
+        // 关闭流式，直接获取完整响应，便于调试
+        const completion = await fastify.openai.chat.completions.create({
           model: 'deepseek-chat',
           messages,
-          stream: true,
+          stream: false,
         });
-      } catch (err) {
-        fastify.log.error('OpenAI API 调用失败:', err);
-        reply.status(502).send({ error: 'AI 服务不可用' });
+        const content = completion.choices?.[0]?.message?.content || '';
+        reply.send({ content, raw: completion });
         return;
-      }
-
-      reply.raw.setHeader('Content-Type', 'text/event-stream');
-      reply.raw.setHeader('Cache-Control', 'no-cache');
-      reply.raw.setHeader('Connection', 'keep-alive');
-
-      // 监听客户端断开连接
-      let clientAborted = false;
-      reply.raw.on('close', () => {
-        clientAborted = true;
-      });
-
-      try {
-        for await (const chunk of stream) {
-          if (clientAborted) break;
-          const content = chunk.choices[0]?.delta?.content;
-          if (content) {
-            reply.raw.write(`data: ${content}\n\n`);
-          }
+      } catch (err: any) {
+        fastify.log.error('OpenAI API 调用失败:', err);
+        // 输出详细错误信息
+        if (err.response) {
+          const errorText = await err.response.text?.();
+          fastify.log.error('OpenAI API 响应:', errorText);
+          reply.status(502).send({ error: 'AI 服务不可用', detail: errorText });
+        } else {
+          reply.status(502).send({ error: 'AI 服务不可用', detail: err.message || err });
         }
-        reply.raw.write(`data: [DONE]\n\n`);
-      } catch (streamErr) {
-        fastify.log.error('流式响应出错:', streamErr);
-        reply.raw.write(`data: [ERROR]\n\n`);
-      } finally {
-        reply.raw.end();
+        return;
       }
 
     } catch (err) {

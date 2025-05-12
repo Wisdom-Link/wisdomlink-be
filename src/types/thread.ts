@@ -4,7 +4,6 @@ export interface ThreadId {
 
 export interface Thread {
   threadId: string;
-  subject: string;
   content: string;
   userId: string;
   createdAt?: Date;
@@ -14,6 +13,6 @@ export interface Thread {
 }
 
 export interface ThreadSearch {
-  subject: string;
+  content: string;
   tags?: string[];
 }
