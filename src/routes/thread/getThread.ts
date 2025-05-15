@@ -1,25 +1,18 @@
 import { FastifyPluginAsync } from 'fastify';
-import Thread from '../../models/thread';
+import { getThreadByContent } from '../../services/threadService';
 
 const getThreadRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get('/getThread', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     try {
       const { content } = request.query as { content?: string };
-
       if (!content) {
         return reply.status(400).send({ message: '缺少 content' });
       }
-
-      const thread = await Thread.findOne({ content }).lean();
-
-      if (!thread) {
-        return reply.status(404).send({ message: '帖子不存在' });
-      }
-
+      const thread = await getThreadByContent(content);
       reply.send(thread);
-    } catch (error) {
+    } catch (error: any) {
       fastify.log.error(error);
-      reply.status(500).send({ message: '服务器错误' });
+      reply.status(404).send({ message: error.message || '服务器错误' });
     }
   });
 };

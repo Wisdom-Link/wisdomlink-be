@@ -1,3 +1,4 @@
+import { Client } from '@elastic/elasticsearch';
 import 'fastify'
 import fp from 'fastify-plugin'
 import OpenAI from 'openai';
@@ -19,5 +20,6 @@ declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
     openai: OpenAI;
+    elasticsearch: Client;
   }
 }

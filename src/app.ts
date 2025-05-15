@@ -1,6 +1,9 @@
 import { join } from 'node:path'
 import AutoLoad, { AutoloadPluginOptions } from '@fastify/autoload'
 import { FastifyPluginAsync, FastifyServerOptions } from 'fastify'
+import * as userService from './services/userService'
+import * as threadService from './services/threadService'
+import * as chatService from './services/chatService'
 
 export interface AppOptions extends FastifyServerOptions, Partial<AutoloadPluginOptions> {
 
@@ -33,6 +36,11 @@ const app: FastifyPluginAsync<AppOptions> = async (
     dir: join(__dirname, 'routes'),
     options: opts
   })
+
+  // 注册完插件后
+  userService.setFastifyInstance(fastify)
+  threadService.setFastifyInstance(fastify)
+  chatService.setFastifyInstance(fastify)
 }
 
 export default app
