@@ -6,14 +6,11 @@ export interface UserLoginBody {
   export interface UserRegisterBody {
     username: string;
     password: string;
-    gender: 'male' | 'female';
-    birthday:Date;
   }
   
   export interface userInfo {
     username: string;
     motto: string;
-    gender: string;
     avatar: string;
     taps: string[];
     level: number;

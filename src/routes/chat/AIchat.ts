@@ -11,15 +11,31 @@ const chatRoute: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        // 关闭流式，直接获取完整响应，便于调试
+        // 添加日志查看前端传递的消息内容
+        fastify.log.info('收到的消息:', JSON.stringify(messages, null, 2));
+        
+        // 开启流式响应，匹配前端流式读取
         const completion = await fastify.openai.chat.completions.create({
           model: 'deepseek-chat',
           messages,
-          stream: false,
+          stream: true,
         });
-        const content = completion.choices?.[0]?.message?.content || '';
-        reply.send({ content, raw: completion });
+
+        // 设置流式响应头
+        reply.type('text/plain');
+        reply.header('Transfer-Encoding', 'chunked');
+
+        // 流式发送数据
+        for await (const chunk of completion) {
+          const content = chunk.choices?.[0]?.delta?.content || '';
+          if (content) {
+            reply.raw.write(content);
+          }
+        }
+        
+        reply.raw.end();
         return;
+
       } catch (err: any) {
         fastify.log.error('OpenAI API 调用失败:', err);
         // 输出详细错误信息

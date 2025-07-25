@@ -13,15 +13,6 @@ const userSchema = new mongoose.Schema({
     required: true, 
     minlength: 6,  // 密码至少 6 位字符
   },
-  gender: { 
-    type: String, 
-    enum: ['male', 'female'], 
-    required: true 
-  },
-  birthday: { 
-    type: Date, 
-    required: true 
-  },
   motto: { 
     type: String, 
     default: '', // 如果没有设置格言则默认值为空

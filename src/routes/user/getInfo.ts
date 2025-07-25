@@ -13,7 +13,6 @@ const getInfoRoute: FastifyPluginAsync = async (fastify) => {
       const result: userInfo = {
         username: user.username,
         motto: user.motto || '',
-        gender: user.gender,
         taps: user.taps,
         level: user.level || 1,
         avatar: user.avatar || '',

@@ -10,7 +10,7 @@ export function setFastifyInstance(f: FastifyInstance) {
 }
 
 export async function registerUser(data: UserRegisterBody) {
-  const { username, password, gender, birthday } = data
+  const { username, password } = data
   const existingUser = await User.findOne({ username })
   if (existingUser) {
     throw new Error('用户名已存在')
@@ -19,15 +19,12 @@ export async function registerUser(data: UserRegisterBody) {
   const newUser = new User({
     username,
     password: hashedPassword,
-    gender,
-    birthday,
   })
   await newUser.save()
   // 同步到 ES
   const userDoc: userInfo = {
     username: newUser.username,
     motto: newUser.motto || '',
-    gender: newUser.gender,
     avatar: newUser.avatar || '',
     taps: newUser.taps || [],
     level: newUser.level || 1,
@@ -76,7 +73,6 @@ export async function updateUserInfo(userId: string, data: updateInfo) {
   const userDoc: userInfo = {
     username: updatedUser.username,
     motto: updatedUser.motto || '',
-    gender: updatedUser.gender,
     avatar: updatedUser.avatar || '',
     taps: updatedUser.taps || [],
     level: updatedUser.level || 1,
