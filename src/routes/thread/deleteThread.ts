@@ -9,7 +9,7 @@ const deleteThreadRoute: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ message: '缺少 _id' })
       }
       await deleteThreadById(_id)
-      reply.send({ message: '帖子删除成功' })
+      reply.status(200).send({ message: '帖子删除成功' })
     } catch (error: any) {
       reply.status(404).send({ message: error.message || '删除帖子失败' })
     }

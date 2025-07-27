@@ -40,7 +40,7 @@ const userSchema = new mongoose.Schema({
   },
   avatar: { 
     type: String, 
-    default: '', // 默认头像为空字符串
+    default: 'http://szsykcdad.hn-bkt.clouddn.com/avatar/%E9%BB%98%E8%AE%A4123456789.png'
   },
   questionChats: [
     {

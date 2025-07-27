@@ -8,7 +8,7 @@ const searchThreadRoute: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: '缺少查询参数 q' })
     }
     const result = await searchThread(q)
-    reply.send(result)
+    reply.status(200).send(result)
   })
 }
 

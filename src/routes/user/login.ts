@@ -13,7 +13,7 @@ const loginRoute: FastifyPluginAsync = async (fastify) => {
         { userId: user._id },
         { expiresIn: '30d' }
       )
-      return reply.send({
+      return reply.status(200).send({
         message: '登录成功',
         user: {
           id: user._id,

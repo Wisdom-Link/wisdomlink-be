@@ -9,7 +9,7 @@ const deleteUserRoute: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ message: '缺少用户名' });
       }
       await deleteUserByUsername(username);
-      reply.send({ message: '用户删除成功' });
+      reply.status(200).send({ message: '用户删除成功' });
     } catch (error: any) {
       fastify.log.error(error);
       reply.status(404).send({ message: error.message || '服务器错误' });

@@ -1,4 +1,5 @@
 import Thread from '../models/thread'
+import User from '../models/user'
 import { FastifyInstance } from 'fastify'
 
 let fastify: FastifyInstance
@@ -7,14 +8,53 @@ export function setFastifyInstance(f: FastifyInstance) {
 }
 
 export async function saveThread(data: any) {
-  const thread = new Thread(data)
-  await thread.save()
-  // 同步到 ES
-  await fastify.elasticsearch.index({
-    index: 'threads',
-    id: thread._id.toString(),
-    document: thread.toObject()
+  const { content, username, community, location, tags, createdAt, userAvatar } = data
+  
+  // 验证必需字段
+  if (!content || !username || !community) {
+    throw new Error('帖子内容、用户名和社区不能为空')
+  }
+  
+  // 查找用户，验证用户是否存在
+  const user = await User.findOne({ username })
+  if (!user) {
+    throw new Error('用户不存在')
+  }
+  
+  // 创建帖子
+  const thread = new Thread({
+    content,
+    user: user._id,
+    username,
+    userAvatar: userAvatar || user.avatar || '', // 优先使用前端传来的头像，其次用用户默认头像
+    community,
+    location: location || '',
+    tags: tags || [],
+    createdAt: createdAt ? new Date(createdAt) : new Date() // 使用前端传来的时间或当前时间
   })
+  
+  await thread.save()
+  
+  // 更新用户的 posts 数组
+  await User.findByIdAndUpdate(user._id, {
+    $push: { posts: thread._id }
+  })
+  
+  // 同步到 ES
+  try {
+    await fastify.elasticsearch.index({
+      index: 'threads',
+      id: thread._id.toString(),
+      document: {
+        ...thread.toObject(),
+        userId: user._id.toString() // 添加用户ID便于搜索
+      }
+    })
+  } catch (error) {
+    console.error('ES 同步失败:', error)
+    // ES 同步失败不影响主要功能
+  }
+  
   return thread
 }
 

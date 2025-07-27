@@ -19,6 +19,7 @@ export async function registerUser(data: UserRegisterBody) {
   const newUser = new User({
     username,
     password: hashedPassword,
+    avatar: 'http://szsykcdad.hn-bkt.clouddn.com/avatar/%E9%BB%98%E8%AE%A4123456789.png'
   })
   await newUser.save()
   // 同步到 ES

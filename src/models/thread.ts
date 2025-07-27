@@ -1,18 +1,22 @@
 import mongoose from 'mongoose';
 
 const threadSchema = new mongoose.Schema({
-  subject: {
-    type: String,
-    required: true
-  },
   content: {
     type: String,
     required: true
   },
-  userId: {
+  user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  username: {
+    type: String,
+    required: true
+  },
+  userAvatar: {
+    type: String,
+    default: ''
   },
   createdAt: {
     type: Date,

@@ -6,7 +6,7 @@ const registerRoute: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: UserRegisterBody }>('/register', async (request, reply) => {
     try {
       await registerUser(request.body)
-      reply.send({ message: '注册成功' })
+      reply.status(200).send({ message: '注册成功' })
     } catch (error: any) {
       fastify.log.error(error)
       reply.status(400).send({ message: error.message || '注册失败' })

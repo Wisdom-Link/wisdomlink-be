@@ -16,10 +16,10 @@ const updateInfoRoute: FastifyPluginAsync = async (fastify) => {
         taps: updatedUser.taps || [],
         avatar: updatedUser.avatar || '',
       }
-      reply.send(result)
+      reply.status(200).send(result)
     } catch (error: any) {
       fastify.log.error(error)
-      reply.status(404).send({ message: error.message || '服务器错误' })
+      reply.status(500).send({ message: error.message || '服务器错误' })
     }
   })
 }
