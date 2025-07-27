@@ -25,7 +25,6 @@ export interface UserLoginBody {
   export interface updateInfo {
     username: string;
     motto: string;
-    gender: string;
     avatar: string;
     taps: string[];
   }

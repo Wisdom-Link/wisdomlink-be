@@ -13,7 +13,6 @@ const updateInfoRoute: FastifyPluginAsync = async (fastify) => {
       const result: updateInfo = {
         username: updatedUser.username || '',
         motto: updatedUser.motto || '',
-        gender: updatedUser.gender || 'unknown',
         taps: updatedUser.taps || [],
         avatar: updatedUser.avatar || '',
       }

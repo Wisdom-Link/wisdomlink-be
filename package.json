@@ -18,7 +18,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@elastic/elasticsearch": "^9.0.1",
+    "@elastic/elasticsearch": "^8.15.0",
     "@fastify/autoload": "^6.0.0",
     "@fastify/jwt": "^9.1.0",
     "@fastify/mongodb": "^9.0.2",
