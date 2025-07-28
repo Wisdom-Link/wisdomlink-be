@@ -60,7 +60,7 @@ profile*
 # generated code
 examples/typescript-server.js
 test/types/index.js
-src/clear-db.ts
+src/clear-db.js
 
 # compiled app
 dist

@@ -42,14 +42,24 @@ export async function saveThread(data: any) {
   
   // 同步到 ES
   try {
+    const threadDoc = {
+      content: thread.content,
+      username: thread.username,
+      userAvatar: thread.userAvatar,
+      community: thread.community,
+      location: thread.location,
+      tags: thread.tags,
+      createdAt: thread.createdAt,
+      userId: user._id.toString(),
+      _id: thread._id.toString()
+    };
+    
     await fastify.elasticsearch.index({
       index: 'threads',
       id: thread._id.toString(),
-      document: {
-        ...thread.toObject(),
-        userId: user._id.toString() // 添加用户ID便于搜索
-      }
-    })
+      document: threadDoc
+    });
+    console.log('ES 同步成功:', threadDoc);
   } catch (error) {
     console.error('ES 同步失败:', error)
     // ES 同步失败不影响主要功能
@@ -88,7 +98,7 @@ export async function searchThread(q: string) {
     query: {
       multi_match: {
         query: q,
-        fields: ['content', 'tags', 'subject']
+        fields: ['content', 'tags', 'community', 'username']
       }
     }
   })

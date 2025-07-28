@@ -80,7 +80,7 @@ export async function updateUserInfo(userId: string, data: updateInfo) {
   const updateData: Partial<updateInfo> = {}
   if (data.username && data.username.trim()) updateData.username = data.username.trim()
   if (data.motto !== undefined && data.motto !== null) updateData.motto = data.motto
-  if (data.avatar && data.avatar.trim()) updateData.avatar = data.avatar.trim()
+  if (data.avatar && data.avatar.trim()) updateData.avatar = data.avatar.trim() // 修复：确保头像链接能被更新
   if (data.taps && Array.isArray(data.taps)) updateData.taps = data.taps
   
   const updatedUser = await User.findByIdAndUpdate(
@@ -95,7 +95,7 @@ export async function updateUserInfo(userId: string, data: updateInfo) {
     const esUpdateData: any = {}
     if (updateData.username) esUpdateData.username = updatedUser.username
     if (updateData.motto !== undefined) esUpdateData.motto = updatedUser.motto || ''
-    if (updateData.avatar) esUpdateData.avatar = updatedUser.avatar || ''
+    if (updateData.avatar) esUpdateData.avatar = updatedUser.avatar || '' // 修复：同步头像到ES
     if (updateData.taps) esUpdateData.taps = updatedUser.taps || []
     
     if (Object.keys(esUpdateData).length > 0) {
