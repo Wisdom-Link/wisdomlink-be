@@ -4,12 +4,12 @@ import { updateUserInfo, getUserInfo } from '../../services/userService'
 import { uploadAvatar } from '../../services/qiniuService'
 
 const updateInfoRoute: FastifyPluginAsync = async (fastify) => {
-  // 支持文件上传的路由
-  fastify.post('/upload', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+  // 支持base64图片上传的路由
+  fastify.post<{ Body: { avatar: string } }>('/upload', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     try {
-      const data = await request.file()
-      if (!data) {
-        return reply.status(400).send({ message: '没有上传文件' })
+      const { avatar } = request.body
+      if (!avatar) {
+        return reply.status(400).send({ message: '没有上传头像数据' })
       }
 
       const userId = (request.user as any)?.userId
@@ -21,8 +21,11 @@ const updateInfoRoute: FastifyPluginAsync = async (fastify) => {
         // 获取当前用户信息
         const currentUser = await getUserInfo(userId)
         
-        // 将文件流转换为 Buffer
-        const buffer = await data.toBuffer()
+        // 处理base64数据，移除data:image/xxx;base64,前缀
+        const base64Data = avatar.replace(/^data:image\/[a-zA-Z+]+;base64,/, '')
+        
+        // 将base64转换为Buffer
+        const buffer = Buffer.from(base64Data, 'base64')
         
         // 上传到七牛云
         const avatarUrl = await uploadAvatar(buffer, currentUser.username)
@@ -51,10 +54,19 @@ const updateInfoRoute: FastifyPluginAsync = async (fastify) => {
 
       const updateData = { ...request.body }
       
-      // 检查头像字段，如果是临时文件路径则忽略
-      if (updateData.avatar && (updateData.avatar.includes('/tmp/') || updateData.avatar.includes('temp'))) {
-        fastify.log.warn('检测到临时文件路径，忽略头像更新:', updateData.avatar)
-        delete updateData.avatar // 删除临时路径，不更新头像
+      // 如果头像是base64格式，则先上传获取URL
+      if (updateData.avatar && updateData.avatar.startsWith('data:image/')) {
+        try {
+          const currentUser = await getUserInfo(userId)
+          const base64Data = updateData.avatar.replace(/^data:image\/[a-zA-Z+]+;base64,/, '')
+          const buffer = Buffer.from(base64Data, 'base64')
+          const avatarUrl = await uploadAvatar(buffer, currentUser.username)
+          updateData.avatar = avatarUrl
+          fastify.log.info('头像base64已转换为URL:', avatarUrl)
+        } catch (error) {
+          fastify.log.error('头像上传失败:', error)
+          delete (updateData as any).avatar // 上传失败则不更新头像，保持原有头像
+        }
       }
       
       // 添加调试日志
@@ -81,6 +93,5 @@ const updateInfoRoute: FastifyPluginAsync = async (fastify) => {
     }
   })
 }
-
 
 export default updateInfoRoute;

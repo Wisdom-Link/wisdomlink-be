@@ -5,13 +5,18 @@ export interface ChatMessage {
 }
 
 export interface Chat {
-    _id: string;
+    _id?: string;
     imageUrl?: string;
     questionUserId: string; // 问问题的用户id
     answerUserId: string;   // 答问题的用户id
-    tap: string;           // 标签，单个
-    subject: string;       // 标题
-    messages: ChatMessage[];
+    tap?: string;
+    subject?: string;
+    status?: 'ongoing' | 'completed';
+    messages: {
+        sender: string;
+        content: string;
+        timestamp?: Date;
+    }[];
     createdAt?: Date;
     updatedAt?: Date;
 }

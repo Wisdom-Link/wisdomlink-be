@@ -91,16 +91,59 @@ export async function deleteThreadById(_id: string) {
   return true
 }
 
-// 帖子搜索
+export async function getThreadsByCommunity(community: string) {
+  const result = await fastify.elasticsearch.search({
+    index: 'threads',
+    query: {
+      term: { community }
+    },
+    size: 1000 // 可根据实际需求调整
+  })
+  return result.hits.hits.map((hit: any) => hit._source)
+}
+
+// 帖子关键词搜索（只搜内容和标签）
 export async function searchThread(q: string) {
   const result = await fastify.elasticsearch.search({
     index: 'threads',
     query: {
       multi_match: {
         query: q,
-        fields: ['content', 'tags', 'community', 'username']
+        fields: ['content', 'tags']
       }
     }
   })
   return result.hits.hits.map((hit: any) => hit._source)
+}
+
+export async function getThreadsByUsername(username: string) {
+  const result = await fastify.elasticsearch.search({
+    index: 'threads',
+    query: {
+      term: { username }
+    },
+    size: 1000 // 可根据实际需求调整
+  });
+  return result.hits.hits.map((hit: any) => hit._source);
+}
+
+export async function getRandomThreads(count: number = 5) {
+  try {
+    const result = await fastify.elasticsearch.search({
+      index: 'threads',
+      query: {
+        function_score: {
+          query: { match_all: {} },
+          functions: [
+            { random_score: {} }
+          ]
+        }
+      },
+      size: count
+    });
+    return result.hits.hits.map((hit: any) => hit._source);
+  } catch (error) {
+    fastify.log.error('随机获取帖子失败:', error);
+    throw new Error('获取随机帖子失败');
+  }
 }

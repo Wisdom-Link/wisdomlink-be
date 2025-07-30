@@ -23,6 +23,11 @@ const chatSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  status: {
+    type: String,
+    enum: ['ongoing', 'completed'],
+    default: 'ongoing'
+  },
   messages: [
     {
       sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

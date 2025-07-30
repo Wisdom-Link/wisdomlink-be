@@ -4,6 +4,6 @@
     "outDir": "dist",
     "sourceMap": true
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/clear-db.js"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts"]
 
 }

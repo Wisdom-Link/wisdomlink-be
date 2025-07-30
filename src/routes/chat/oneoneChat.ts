@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from "fastify";
+import { updateChatStatus } from "../../services/chatService";
 
 // 全局用户连接映射表：userId -> WebSocket 连接对象
 const userConnMap = new Map<string, any>();
@@ -22,7 +23,7 @@ const oneoneChatRoute: FastifyPluginAsync = async (fastify) => {
       }
       userConnMap.set(userId, connection);
 
-      connection.socket.on("message", (message: string) => {
+      connection.socket.on("message", async (message: string) => {
         // 期望前端发送格式：{ toUserId: string, content: string, chatId: string, end?: boolean }
         let data: { toUserId: string; content: string; chatId: string; end?: boolean };
         try {
@@ -35,6 +36,15 @@ const oneoneChatRoute: FastifyPluginAsync = async (fastify) => {
         // 聊天室结束逻辑
         if (data.end && data.chatId) {
           chatActiveMap.set(data.chatId, false);
+          
+          // 更新数据库中的对话状态
+          try {
+            await updateChatStatus(data.chatId, 'completed');
+            fastify.log.info(`对话 ${data.chatId} 已标记为完成`);
+          } catch (error) {
+            fastify.log.error(`更新对话状态失败: ${error}`);
+          }
+          
           connection.socket.send(JSON.stringify({ system: true, msg: '对话已结束' }));
           const targetConn = userConnMap.get(data.toUserId);
           if (targetConn) {
