@@ -69,7 +69,9 @@ export async function searchChat(q: string) {
   return result.hits.hits.map((hit: any) => hit._source)
 }
 
-export async function getChatsByStatus(userId: string, status: 'ongoing' | 'completed') {
+export async function getChatsByStatus(user: any, status: 'ongoing' | 'completed') {
+  const userId = user.id || user._id?.toString();
+  
   try {
     const result = await fastify.elasticsearch.search({
       index: 'chats',
@@ -89,9 +91,31 @@ export async function getChatsByStatus(userId: string, status: 'ongoing' | 'comp
         }
       },
       sort: [{ updatedAt: { order: 'desc' } }],
-      size: 100
+      size: 100,
+      _source: {
+        excludes: ['messages'] // 不返回具体对话内容
+      }
     });
-    return result.hits.hits.map((hit: any) => hit._source);
+
+    const chats = result.hits.hits.map((hit: any) => {
+      const chat = hit._source;
+      const isQuestioner = chat.questionUserId === userId;
+      
+      return {
+        _id: chat._id,
+        subject: chat.subject,
+        tap: chat.tap,
+        imageUrl: chat.imageUrl,
+        status: chat.status,
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
+        role: isQuestioner ? 'questioner' : 'answerer',
+        partnerId: isQuestioner ? chat.answerUserId : chat.questionUserId,
+        messageCount: 0 // 可以后续计算消息数量
+      };
+    });
+
+    return chats;
   } catch (error) {
     fastify.log.error('获取对话列表失败:', error);
     // 回退到 MongoDB
@@ -102,8 +126,111 @@ export async function getChatsByStatus(userId: string, status: 'ongoing' | 'comp
         { answerUserId: new mongoose.Types.ObjectId(userId) }
       ]
     };
-    const chats = await Chat.find(query).sort({ updatedAt: -1 }).limit(100);
+    
+    const chats = await Chat.find(query)
+      .select('-messages') // 不包含具体消息内容
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
+
+    return chats.map((chat: any) => {
+      const isQuestioner = chat.questionUserId.toString() === userId;
+      
+      return {
+        _id: chat._id.toString(),
+        subject: chat.subject,
+        tap: chat.tap,
+        imageUrl: chat.imageUrl,
+        status: chat.status,
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
+        role: isQuestioner ? 'questioner' : 'answerer',
+        partnerId: isQuestioner ? chat.answerUserId.toString() : chat.questionUserId.toString(),
+        messageCount: 0
+      };
+    });
+  }
+}
+
+export async function getChatsByUserRole(user: any, role: 'questioner' | 'answerer', status?: 'ongoing' | 'completed') {
+  const userId = user.id || user._id?.toString();
+  
+  try {
+    const mustConditions: any[] = [];
+    
+    // 根据角色筛选
+    if (role === 'questioner') {
+      mustConditions.push({ term: { questionUserId: userId } });
+    } else {
+      mustConditions.push({ term: { answerUserId: userId } });
+    }
+    
+    // 可选的状态筛选
+    if (status) {
+      mustConditions.push({ term: { status } });
+    }
+
+    const result = await fastify.elasticsearch.search({
+      index: 'chats',
+      query: {
+        bool: {
+          must: mustConditions
+        }
+      },
+      sort: [{ updatedAt: { order: 'desc' } }],
+      size: 100,
+      _source: {
+        excludes: ['messages']
+      }
+    });
+
+    const chats = result.hits.hits.map((hit: any) => {
+      const chat = hit._source;
+      
+      return {
+        _id: chat._id,
+        subject: chat.subject,
+        tap: chat.tap,
+        imageUrl: chat.imageUrl,
+        status: chat.status,
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
+        role: role,
+        partnerId: role === 'questioner' ? chat.answerUserId : chat.questionUserId,
+        messageCount: 0
+      };
+    });
+
     return chats;
+  } catch (error) {
+    fastify.log.error('根据角色获取对话列表失败:', error);
+    // 回退到 MongoDB
+    const query: any = { 
+      [role === 'questioner' ? 'questionUserId' : 'answerUserId']: new mongoose.Types.ObjectId(userId)
+    };
+    
+    if (status) {
+      query.status = status;
+    }
+    
+    const chats = await Chat.find(query)
+      .select('-messages')
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
+
+    return chats.map((chat: any) => ({
+      _id: chat._id.toString(),
+      subject: chat.subject,
+      tap: chat.tap,
+      imageUrl: chat.imageUrl,
+      status: chat.status,
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+      role: role,
+      partnerId: role === 'questioner' ? chat.answerUserId.toString() : chat.questionUserId.toString(),
+      messageCount: 0
+    }));
   }
 }
 

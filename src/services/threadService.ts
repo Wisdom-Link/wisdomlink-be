@@ -69,15 +69,30 @@ export async function saveThread(data: any) {
 }
 
 export async function getThreadByContent(content: string) {
-  // 用 ES 搜索
-  const result = await fastify.elasticsearch.search({
-    index: 'threads',
-    query: {
-      match: { content }
+  try {
+    // 用 ES 搜索
+    const result = await fastify.elasticsearch.search({
+      index: 'threads',
+      query: {
+        match: { content }
+      }
+    });
+    
+    if (result.hits.hits.length > 0) {
+      return result.hits.hits[0]._source;
     }
-  })
-  if (!result.hits.hits.length) throw new Error('帖子不存在')
-  return result.hits.hits[0]._source
+  } catch (error) {
+    fastify.log.error('ES 查询失败，回退到 MongoDB:', error);
+  }
+  
+  // 回退到 MongoDB
+  const thread = await Thread.findOne({ content }).lean();
+  if (!thread) throw new Error('帖子不存在');
+  return {
+    ...thread,
+    _id: thread._id.toString(),
+    userId: thread.user.toString()
+  };
 }
 
 export async function deleteThreadById(_id: string) {
@@ -92,39 +107,90 @@ export async function deleteThreadById(_id: string) {
 }
 
 export async function getThreadsByCommunity(community: string) {
-  const result = await fastify.elasticsearch.search({
-    index: 'threads',
-    query: {
-      term: { community }
-    },
-    size: 1000 // 可根据实际需求调整
-  })
-  return result.hits.hits.map((hit: any) => hit._source)
+  try {
+    const result = await fastify.elasticsearch.search({
+      index: 'threads',
+      query: {
+        term: { 'community.keyword': community }
+      },
+      size: 1000
+    });
+    
+    if (result.hits.hits.length > 0) {
+      return result.hits.hits.map((hit: any) => hit._source);
+    }
+  } catch (error) {
+    fastify.log.error('ES 查询失败，回退到 MongoDB:', error);
+  }
+  
+  // 回退到 MongoDB
+  const threads = await Thread.find({ community }).lean();
+  return threads.map((thread: any) => ({
+    ...thread,
+    _id: thread._id.toString(),
+    userId: thread.user.toString()
+  }));
 }
 
 // 帖子关键词搜索（只搜内容和标签）
 export async function searchThread(q: string) {
-  const result = await fastify.elasticsearch.search({
-    index: 'threads',
-    query: {
-      multi_match: {
-        query: q,
-        fields: ['content', 'tags']
+  try {
+    const result = await fastify.elasticsearch.search({
+      index: 'threads',
+      query: {
+        multi_match: {
+          query: q,
+          fields: ['content', 'tags']
+        }
       }
+    });
+    
+    if (result.hits.hits.length > 0) {
+      return result.hits.hits.map((hit: any) => hit._source);
     }
-  })
-  return result.hits.hits.map((hit: any) => hit._source)
+  } catch (error) {
+    fastify.log.error('ES 搜索失败，回退到 MongoDB:', error);
+  }
+  
+  // 回退到 MongoDB
+  const threads = await Thread.find({
+    $or: [
+      { content: { $regex: q, $options: 'i' } },
+      { tags: { $in: [new RegExp(q, 'i')] } }
+    ]
+  }).lean();
+  
+  return threads.map((thread: any) => ({
+    ...thread,
+    _id: thread._id.toString(),
+    userId: thread.user.toString()
+  }));
 }
 
 export async function getThreadsByUsername(username: string) {
-  const result = await fastify.elasticsearch.search({
-    index: 'threads',
-    query: {
-      term: { username }
-    },
-    size: 1000 // 可根据实际需求调整
-  });
-  return result.hits.hits.map((hit: any) => hit._source);
+  try {
+    const result = await fastify.elasticsearch.search({
+      index: 'threads',
+      query: {
+        term: { 'username.keyword': username }
+      },
+      size: 1000
+    });
+    
+    if (result.hits.hits.length > 0) {
+      return result.hits.hits.map((hit: any) => hit._source);
+    }
+  } catch (error) {
+    fastify.log.error('ES 查询失败，回退到 MongoDB:', error);
+  }
+  
+  // 回退到 MongoDB
+  const threads = await Thread.find({ username }).lean();
+  return threads.map((thread: any) => ({
+    ...thread,
+    _id: thread._id.toString(),
+    userId: thread.user.toString()
+  }));
 }
 
 export async function getRandomThreads(count: number = 5) {
@@ -141,9 +207,88 @@ export async function getRandomThreads(count: number = 5) {
       },
       size: count
     });
-    return result.hits.hits.map((hit: any) => hit._source);
+    
+    if (result.hits.hits.length > 0) {
+      return result.hits.hits.map((hit: any) => hit._source);
+    }
   } catch (error) {
-    fastify.log.error('随机获取帖子失败:', error);
-    throw new Error('获取随机帖子失败');
+    fastify.log.error('ES 随机查询失败，回退到 MongoDB:', error);
   }
+  
+  // 回退到 MongoDB 随机查询
+  const threads = await Thread.aggregate([
+    { $sample: { size: count } }
+  ]);
+  
+  return threads.map((thread: any) => ({
+    ...thread,
+    _id: thread._id.toString(),
+    userId: thread.user.toString()
+  }));
+}
+
+export async function updateThread(threadId: string, updateData: any, requestUsername: string) {
+  const { content, community, location, tags } = updateData;
+  
+  // 验证必需字段
+  if (!content && !community && !location && !tags) {
+    throw new Error('至少需要提供一个要更新的字段');
+  }
+  
+  // 查找帖子
+  const thread = await Thread.findById(threadId);
+  if (!thread) {
+    throw new Error('帖子不存在');
+  }
+  
+  // 验证权限：只有帖子作者可以修改
+  if (thread.username !== requestUsername) {
+    throw new Error('无权限修改此帖子');
+  }
+  
+  // 构建更新对象
+  const updateObj: any = {};
+  if (content) updateObj.content = content;
+  if (community) updateObj.community = community;
+  if (location !== undefined) updateObj.location = location;
+  if (tags) updateObj.tags = tags;
+  
+  // 更新帖子
+  const updatedThread = await Thread.findByIdAndUpdate(
+    threadId,
+    updateObj,
+    { new: true }
+  );
+
+  if (!updatedThread) {
+    throw new Error('帖子更新失败，未找到对应帖子');
+  }
+  
+  // 同步到 ES
+  try {
+    const threadDoc = {
+      content: updatedThread.content,
+      username: updatedThread.username,
+      userAvatar: updatedThread.userAvatar,
+      community: updatedThread.community,
+      location: updatedThread.location,
+      tags: updatedThread.tags,
+      createdAt: updatedThread.createdAt,
+      userId: updatedThread.user.toString(),
+      _id: updatedThread._id.toString()
+    };
+    
+    await fastify.elasticsearch.update({
+      index: 'threads',
+      id: threadId,
+      doc: threadDoc
+    });
+    
+    fastify.log.info('帖子 ES 更新成功:', threadId);
+  } catch (error) {
+    fastify.log.error('帖子 ES 更新失败:', error);
+    // ES 更新失败不影响主要功能
+  }
+  
+  return updatedThread;
 }

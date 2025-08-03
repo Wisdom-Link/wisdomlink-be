@@ -4,7 +4,7 @@ import { searchThread } from '../../services/threadService'
 const searchThreadRoute: FastifyPluginAsync = async (fastify) => {
 
   // 根据关键词搜索帖子内容和标签
-  fastify.get('/searchThread', async (request, reply) => {
+  fastify.get('/searchThread', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const { q } = request.query as { q: string }
     if (!q) {
       return reply.status(400).send({ error: '缺少查询参数 q' })

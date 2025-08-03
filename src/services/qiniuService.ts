@@ -1,10 +1,10 @@
 import qiniu from 'qiniu'
-import { FastifyInstance } from 'fastify'
+// import { FastifyInstance } from 'fastify'
 
-let fastify: FastifyInstance
-export function setFastifyInstance(f: FastifyInstance) {
-  fastify = f
-}
+// let fastify: FastifyInstance
+// export function setFastifyInstance(f: FastifyInstance) {
+//   fastify = f
+// }
 
 const accessKey = process.env.QINIU_ACCESS_KEY!
 const secretKey = process.env.QINIU_SECRET_KEY!
