@@ -2,18 +2,31 @@ import { FastifyPluginAsync } from 'fastify';
 import { updateThread } from '../../services/threadService';
 
 interface UpdateThreadBody {
-  threadId: string;
   content?: string;
   community?: string;
   location?: string;
   tags?: string[];
+  username?: string; // 添加 username 字段
+}
+
+interface UpdateThreadParams {
+  threadId: string;
 }
 
 const updateThreadRoute: FastifyPluginAsync = async (fastify) => {
-  fastify.put('/updateThread', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+  fastify.put('/updateThread/:threadId', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     try {
-      const { threadId, content, community, location, tags } = request.body as UpdateThreadBody;
-      const requestUsername = (request as any).user?.username;
+      const { threadId } = request.params as UpdateThreadParams;
+      const { content, community, location, tags, username } = request.body as UpdateThreadBody;
+      
+      // 直接使用前端传递的用户名
+      const requestUsername = username;
+      
+      // 调试日志
+      fastify.log.info('更新帖子请求:', { 
+        threadId, 
+        requestUsername
+      });
       
       // 参数验证
       if (!threadId) {
@@ -24,9 +37,9 @@ const updateThreadRoute: FastifyPluginAsync = async (fastify) => {
       }
       
       if (!requestUsername) {
-        return reply.status(401).send({ 
-          message: '用户未认证',
-          code: 'UNAUTHORIZED'
+        return reply.status(400).send({ 
+          message: '缺少用户名',
+          code: 'MISSING_USERNAME'
         });
       }
       
@@ -97,5 +110,6 @@ const updateThreadRoute: FastifyPluginAsync = async (fastify) => {
     }
   });
 };
+
 
 export default updateThreadRoute;
