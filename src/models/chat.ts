@@ -1,27 +1,37 @@
 import mongoose from 'mongoose';
 
 const chatSchema = new mongoose.Schema({
-  imageUrl: {
-    type: String,
-    default: ''
-  },
+  // 提问者信息
   questionUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
+  questionUsername: {
+    type: String,
+    required: true
+  },
+  // 回答者信息
   answerUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  tap: {
+  answerUsername: {
+    type: String,
+    required: true
+  },
+  content: {
     type: String,
     default: ''
   },
-  subject: {
+  community: {
     type: String,
-    default: ''
+    required: true
+  },
+  tags: {
+    type: [String],
+    default: []
   },
   status: {
     type: String,
@@ -30,7 +40,8 @@ const chatSchema = new mongoose.Schema({
   },
   messages: [
     {
-      sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      senderUsername: { type: String, required: true },
       content: { type: String, required: true },
       timestamp: { type: Date, default: Date.now },
       _id: false 

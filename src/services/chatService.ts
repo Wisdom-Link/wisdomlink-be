@@ -6,253 +6,597 @@ import { FastifyInstance } from 'fastify'
 let fastify: FastifyInstance
 export function setFastifyInstance(f: FastifyInstance) {
   fastify = f
+  
+  // 临时修复：删除有问题的索引
+  fixChatIndexes();
+  
+  // 检查 ES 连接
+  checkElasticsearchConnection();
+}
+
+async function checkElasticsearchConnection() {
+  try {
+    if (!fastify.elasticsearch) {
+      fastify.log.warn('Elasticsearch 客户端未初始化');
+      return;
+    }
+    
+    const health = await fastify.elasticsearch.cluster.health();
+    fastify.log.info('Elasticsearch 连接状态:', {
+      status: health.status,
+      cluster_name: health.cluster_name,
+      number_of_nodes: health.number_of_nodes
+    });
+    
+    // 检查索引是否存在
+    const chatIndexExists = await fastify.elasticsearch.indices.exists({ index: 'chats' });
+    fastify.log.info('chats 索引状态:', { exists: chatIndexExists });
+    
+    if (!chatIndexExists) {
+      fastify.log.info('创建 chats 索引');
+      await fastify.elasticsearch.indices.create({
+        index: 'chats',
+        body: {
+          mappings: {
+            properties: {
+              questionUsername: { type: 'keyword' },
+              answerUsername: { type: 'keyword' },
+              content: { type: 'text' },
+              community: { type: 'keyword' },
+              tags: { type: 'keyword' },
+              status: { type: 'keyword' },
+              createdAt: { type: 'date' },
+              updatedAt: { type: 'date' }
+            }
+          }
+        }
+      });
+    }
+  } catch (error: any) {
+    fastify.log.error('Elasticsearch 连接检查失败:', {
+      errorMessage: error.message,
+      errorType: error.constructor.name,
+      errorCode: error.code
+    });
+  }
+}
+
+async function fixChatIndexes() {
+  try {
+    // 尝试删除有问题的索引
+    await Chat.collection.dropIndex('chatId_1');
+    fastify.log.info('成功删除有问题的 chatId 索引');
+  } catch (error: any) {
+    if (error.code === 27) {
+      fastify.log.info('chatId 索引不存在，无需删除');
+    } else {
+      fastify.log.error('删除 chatId 索引失败:', error);
+    }
+  }
 }
 
 export async function saveChat(chatData: ChatType) {
   let chat = chatData._id ? await Chat.findById(chatData._id) : null
-  const messages = chatData.messages.map(msg => ({
-    sender: new mongoose.Types.ObjectId(msg.sender),
-    content: msg.content,
-    timestamp: msg.timestamp || new Date()
-  }))
+  
+  // 验证必需字段
+  if (!chatData.questionUsername || !chatData.answerUsername || !chatData.community) {
+    throw new Error('提问者用户名、回答者用户名和社区不能为空');
+  }
+  
+  // 根据用户名查找用户ID
+  const User = require('../models/user').default;
+  const [questioner, answerer] = await Promise.all([
+    User.findOne({ username: chatData.questionUsername }),
+    User.findOne({ username: chatData.answerUsername })
+  ]);
+  
+  if (!questioner) {
+    throw new Error(`提问者用户不存在: ${chatData.questionUsername}`);
+  }
+  if (!answerer) {
+    throw new Error(`回答者用户不存在: ${chatData.answerUsername}`);
+  }
+  
+  const messages = await Promise.all(
+    chatData.messages.map(async msg => {
+      const sender = await User.findOne({ username: msg.senderUsername });
+      if (!sender) {
+        throw new Error(`消息发送者用户不存在: ${msg.senderUsername}`);
+      }
+      return {
+        senderId: sender._id,
+        senderUsername: msg.senderUsername,
+        content: msg.content,
+        timestamp: msg.timestamp || new Date()
+      };
+    })
+  );
+  
   if (chat) {
-    chat.imageUrl = chatData.imageUrl || chat.imageUrl
-    chat.questionUserId = new mongoose.Types.ObjectId(chatData.questionUserId)
-    chat.answerUserId = new mongoose.Types.ObjectId(chatData.answerUserId)
-    chat.tap = chatData.tap || ''
-    chat.subject = chatData.subject || ''
+    chat.questionUserId = questioner._id
+    chat.questionUsername = chatData.questionUsername
+    chat.answerUserId = answerer._id
+    chat.answerUsername = chatData.answerUsername
+    chat.content = chatData.content || ''
+    chat.community = chatData.community
+    chat.tags = chatData.tags || []
     chat.status = chatData.status || chat.status || 'ongoing'
     chat.set('messages', messages, { strict: true })
     await chat.save()
   } else {
     chat = new Chat({
-      imageUrl: chatData.imageUrl,
-      questionUserId: new mongoose.Types.ObjectId(chatData.questionUserId),
-      answerUserId: new mongoose.Types.ObjectId(chatData.answerUserId),
-      tap: chatData.tap || '',
-      subject: chatData.subject || '',
+      questionUserId: questioner._id,
+      questionUsername: chatData.questionUsername,
+      answerUserId: answerer._id,
+      answerUsername: chatData.answerUsername,
+      content: chatData.content || '',
+      community: chatData.community,
+      tags: chatData.tags || [],
       status: chatData.status || 'ongoing',
       messages
     })
     await chat.save()
   }
-  // 同步到 ES
-  await fastify.elasticsearch.index({
-    index: 'chats',
-    id: chat._id.toString(),
-    document: chat.toObject()
-  })
+  // 同步到 ES - 移除 _id 字段
+  try {
+    if (!fastify.elasticsearch) {
+      fastify.log.warn('ES 客户端未初始化，跳过同步');
+      return chat;
+    }
+    
+    const chatDoc = chat.toObject() as any;
+    delete chatDoc._id;
+    delete chatDoc.__v;
+    
+    await fastify.elasticsearch.index({
+      index: 'chats',
+      id: chat._id.toString(),
+      document: chatDoc
+    });
+    
+    fastify.log.info('ES 同步成功:', { chatId: chat._id.toString() });
+  } catch (error: any) {
+    fastify.log.error('ES 同步失败:', {
+      errorMessage: error.message,
+      errorType: error.constructor.name,
+      statusCode: error.statusCode,
+      chatId: chat._id.toString()
+    });
+  }
+  
   return chat
 }
 
 export async function getChatById(_id: string) {
-  // 用 ES 查找
-  const result = await fastify.elasticsearch.get({
-    index: 'chats',
-    id: _id
-  }).catch(() => null)
-  if (!result || !result.found) throw new Error('对话不存在')
-  return result._source
-}
-
-// chat 搜索
-export async function searchChat(q: string) {
-  const result = await fastify.elasticsearch.search({
-    index: 'chats',
-    query: {
-      multi_match: {
-        query: q,
-        fields: ['subject', 'tap', 'messages.content']
-      }
-    }
-  })
-  return result.hits.hits.map((hit: any) => hit._source)
-}
-
-export async function getChatsByStatus(user: any, status: 'ongoing' | 'completed') {
-  const userId = user.id || user._id?.toString();
-  
   try {
-    const result = await fastify.elasticsearch.search({
-      index: 'chats',
-      query: {
-        bool: {
-          must: [
-            { term: { status } },
-            {
-              bool: {
-                should: [
-                  { term: { questionUserId: userId } },
-                  { term: { answerUserId: userId } }
-                ]
-              }
-            }
-          ]
-        }
-      },
-      sort: [{ updatedAt: { order: 'desc' } }],
-      size: 100,
-      _source: {
-        excludes: ['messages'] // 不返回具体对话内容
-      }
-    });
-
-    const chats = result.hits.hits.map((hit: any) => {
-      const chat = hit._source;
-      const isQuestioner = chat.questionUserId === userId;
-      
-      return {
-        _id: chat._id,
-        subject: chat.subject,
-        tap: chat.tap,
-        imageUrl: chat.imageUrl,
-        status: chat.status,
-        createdAt: chat.createdAt,
-        updatedAt: chat.updatedAt,
-        role: isQuestioner ? 'questioner' : 'answerer',
-        partnerId: isQuestioner ? chat.answerUserId : chat.questionUserId,
-        messageCount: 0 // 可以后续计算消息数量
-      };
-    });
-
-    return chats;
-  } catch (error) {
-    fastify.log.error('获取对话列表失败:', error);
-    // 回退到 MongoDB
-    const query = {
-      status,
-      $or: [
-        { questionUserId: new mongoose.Types.ObjectId(userId) },
-        { answerUserId: new mongoose.Types.ObjectId(userId) }
-      ]
-    };
+    if (!fastify.elasticsearch) {
+      fastify.log.warn('ES 客户端未初始化，直接使用 MongoDB');
+      throw new Error('ES unavailable');
+    }
     
-    const chats = await Chat.find(query)
-      .select('-messages') // 不包含具体消息内容
-      .sort({ updatedAt: -1 })
-      .limit(100)
-      .lean();
-
-    return chats.map((chat: any) => {
-      const isQuestioner = chat.questionUserId.toString() === userId;
-      
-      return {
-        _id: chat._id.toString(),
-        subject: chat.subject,
-        tap: chat.tap,
-        imageUrl: chat.imageUrl,
-        status: chat.status,
-        createdAt: chat.createdAt,
-        updatedAt: chat.updatedAt,
-        role: isQuestioner ? 'questioner' : 'answerer',
-        partnerId: isQuestioner ? chat.answerUserId.toString() : chat.questionUserId.toString(),
-        messageCount: 0
-      };
+    const result = await fastify.elasticsearch.get({
+      index: 'chats',
+      id: _id
+    });
+    
+    if (result && result.found) {
+      fastify.log.info('ES 查询成功:', { chatId: _id });
+      return result._source;
+    }
+  } catch (error: any) {
+    fastify.log.error('ES 查询失败，回退到 MongoDB:', {
+      errorMessage: error.message,
+      errorType: error.constructor.name,
+      statusCode: error.statusCode,
+      chatId: _id
     });
   }
+  
+  // 回退到 MongoDB，并populate用户信息
+  const chat = await Chat.findById(_id)
+    .populate('questionUserId', 'username avatar email')
+    .populate('answerUserId', 'username avatar email')
+    .populate('messages.senderId', 'username avatar')
+    .lean();
+    
+  if (!chat) throw new Error('对话不存在');
+  return chat;
 }
 
-export async function getChatsByUserRole(user: any, role: 'questioner' | 'answerer', status?: 'ongoing' | 'completed') {
-  const userId = user.id || user._id?.toString();
+// 合并后的通用查询函数
+export async function getChatsByConditions(
+  user: any, 
+  options: {
+    status?: 'ongoing' | 'completed';
+    role?: 'questioner' | 'answerer';
+    community?: string;
+  } = {}
+) {
+  const username = user.username || user.name;
+  const { status, role, community } = options;
+  
+  fastify.log.info('=== 开始获取对话列表 ===', { 
+    username, 
+    status, 
+    role,
+    community,
+    hasES: !!fastify.elasticsearch
+  });
   
   try {
-    const mustConditions: any[] = [];
-    
-    // 根据角色筛选
-    if (role === 'questioner') {
-      mustConditions.push({ term: { questionUserId: userId } });
-    } else {
-      mustConditions.push({ term: { answerUserId: userId } });
+    if (!fastify.elasticsearch) {
+      fastify.log.warn('ES 客户端未初始化，直接使用 MongoDB');
+      throw new Error('ES unavailable');
     }
     
-    // 可选的状态筛选
+    const mustConditions: any[] = [];
+    
+    // 状态筛选
     if (status) {
       mustConditions.push({ term: { status } });
     }
-
-    const result = await fastify.elasticsearch.search({
-      index: 'chats',
-      query: {
+    
+    // 社区筛选
+    if (community) {
+      mustConditions.push({ term: { community } });
+    }
+    
+    // 根据角色筛选
+    if (role === 'questioner') {
+      mustConditions.push({ term: { questionUsername: username } });
+    } else if (role === 'answerer') {
+      mustConditions.push({ term: { answerUsername: username } });
+    } else {
+      // 如果没有指定角色，查找用户参与的所有对话
+      mustConditions.push({
         bool: {
-          must: mustConditions
+          should: [
+            { term: { questionUsername: username } },
+            { term: { answerUsername: username } }
+          ]
         }
-      },
-      sort: [{ updatedAt: { order: 'desc' } }],
-      size: 100,
-      _source: {
-        excludes: ['messages']
+      });
+    }
+
+    fastify.log.info('=== ES 查询条件 ===', { 
+      mustConditions,
+      index: 'chats'
+    });
+    
+    const esQuery = {
+      index: 'chats',
+      body: {
+        query: {
+          bool: {
+            must: mustConditions
+          }
+        },
+        sort: [{ updatedAt: { order: 'desc' } }],
+        size: 100,
+        _source: {
+          excludes: ['messages']
+        }
       }
+    };
+    
+    const result = await fastify.elasticsearch.search(esQuery);
+
+    fastify.log.info('=== ES 查询成功 ===', { 
+      total: result.hits.total,
+      hitCount: result.hits.hits.length,
+      took: result.took
     });
 
     const chats = result.hits.hits.map((hit: any) => {
       const chat = hit._source;
+      const isQuestioner = chat.questionUsername === username;
       
       return {
-        _id: chat._id,
-        subject: chat.subject,
-        tap: chat.tap,
-        imageUrl: chat.imageUrl,
+        _id: hit._id,
+        content: chat.content,
+        community: chat.community,
+        tags: chat.tags || [],
         status: chat.status,
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
-        role: role,
-        partnerId: role === 'questioner' ? chat.answerUserId : chat.questionUserId,
+        role: isQuestioner ? 'questioner' : 'answerer',
+        partnerUsername: isQuestioner ? chat.answerUsername : chat.questionUsername,
         messageCount: 0
       };
     });
 
-    return chats;
-  } catch (error) {
-    fastify.log.error('根据角色获取对话列表失败:', error);
-    // 回退到 MongoDB
-    const query: any = { 
-      [role === 'questioner' ? 'questionUserId' : 'answerUserId']: new mongoose.Types.ObjectId(userId)
-    };
-    
-    if (status) {
-      query.status = status;
-    }
-    
-    const chats = await Chat.find(query)
-      .select('-messages')
-      .sort({ updatedAt: -1 })
-      .limit(100)
-      .lean();
+    fastify.log.info('=== 处理完成 ===', { 
+      resultCount: chats.length 
+    });
 
-    return chats.map((chat: any) => ({
-      _id: chat._id.toString(),
-      subject: chat.subject,
-      tap: chat.tap,
-      imageUrl: chat.imageUrl,
-      status: chat.status,
-      createdAt: chat.createdAt,
-      updatedAt: chat.updatedAt,
-      role: role,
-      partnerId: role === 'questioner' ? chat.answerUserId.toString() : chat.questionUserId.toString(),
-      messageCount: 0
-    }));
+    return chats;
+  } catch (error: any) {
+    fastify.log.error('=== ES 查询失败 ===', {
+      errorMessage: error.message,
+      errorName: error.name,
+      errorType: error.constructor.name,
+      errorCode: error.code,
+      statusCode: error.statusCode,
+      queryParams: { username, status, role }
+    });
+    
+    // 回退到 MongoDB
+    try {
+      fastify.log.info('=== 开始 MongoDB 回退查询 ===');
+      
+      const query: any = {};
+      
+      // 构建 MongoDB 查询条件
+      if (status) {
+        query.status = status;
+      }
+      
+      if (community) {
+        query.community = community;
+      }
+      
+      if (role === 'questioner') {
+        query.questionUsername = username;
+      } else if (role === 'answerer') {
+        query.answerUsername = username;
+      } else {
+        query.$or = [
+          { questionUsername: username },
+          { answerUsername: username }
+        ];
+      }
+      
+      fastify.log.info('=== MongoDB 查询条件 ===', { 
+        query: JSON.stringify(query, null, 2)
+      });
+      
+      const chats = await Chat.find(query)
+        .select('-messages')
+        .sort({ updatedAt: -1 })
+        .limit(100)
+        .lean();
+
+      fastify.log.info('=== MongoDB 查询成功 ===', { 
+        chatCount: chats.length,
+        sampleChat: chats.length > 0 ? {
+          id: chats[0]._id,
+          questionUsername: chats[0].questionUsername,
+          answerUsername: chats[0].answerUsername,
+          status: chats[0].status
+        } : null
+      });
+
+      return chats.map((chat: any) => {
+        const isQuestioner = chat.questionUsername === username;
+        
+        return {
+          _id: chat._id.toString(),
+          content: chat.content,
+          community: chat.community,
+          tags: chat.tags || [],
+          status: chat.status,
+          createdAt: chat.createdAt,
+          updatedAt: chat.updatedAt,
+          role: isQuestioner ? 'questioner' : 'answerer',
+          partnerUsername: isQuestioner ? chat.answerUsername : chat.questionUsername,
+          messageCount: 0
+        };
+      });
+    } catch (mongoError: any) {
+      fastify.log.error('=== MongoDB 回退查询失败 ===', {
+        errorMessage: mongoError.message,
+        errorName: mongoError.name,
+        errorCode: mongoError.code,
+        stack: mongoError.stack?.substring(0, 500),
+        queryParams: { username, status, role }
+      });
+      throw new Error(`数据库查询失败: ${mongoError.message}`);
+    }
   }
 }
 
+// 新增：根据社区获取对话
+export async function getChatsByCommunity(community: string) {
+  try {
+    if (!fastify.elasticsearch) {
+      throw new Error('ES unavailable');
+    }
+    
+    const result = await fastify.elasticsearch.search({
+      index: 'chats',
+      body: {
+        query: {
+          term: { community }
+        },
+        sort: [{ updatedAt: { order: 'desc' } }],
+        size: 1000,
+        _source: {
+          excludes: ['messages']
+        }
+      }
+    });
+    
+    if (result.hits.hits.length > 0) {
+      fastify.log.info('ES 社区对话查询成功:', { 
+        community, 
+        hitCount: result.hits.hits.length 
+      });
+      return result.hits.hits.map((hit: any) => ({
+        _id: hit._id,
+        ...hit._source
+      }));
+    }
+  } catch (error: any) {
+    fastify.log.error('ES 社区对话查询失败，回退到 MongoDB:', {
+      errorMessage: error.message,
+      community
+    });
+  }
+  
+  // 回退到 MongoDB
+  const chats = await Chat.find({ community })
+    .select('-messages')
+    .sort({ updatedAt: -1 })
+    .limit(1000)
+    .lean();
+    
+  return chats.map((chat: any) => ({
+    ...chat,
+    _id: chat._id.toString()
+  }));
+}
+
+// 为了向后兼容，保留原有函数作为简单的包装器
+export async function getChatsByStatus(user: any, status: 'ongoing' | 'completed') {
+  return getChatsByConditions(user, { status });
+}
+
+export async function getChatsByUserRole(user: any, role: 'questioner' | 'answerer', status?: 'ongoing' | 'completed') {
+  return getChatsByConditions(user, { role, status });
+}
+
 export async function updateChatStatus(chatId: string, status: 'ongoing' | 'completed') {
+  // 先获取完整的对话数据
+  const existingChat = await Chat.findById(chatId);
+  if (!existingChat) {
+    throw new Error('对话不存在');
+  }
+  
+  // 只更新状态字段
   const chat = await Chat.findByIdAndUpdate(
     chatId,
     { status },
     { new: true }
   );
-  if (!chat) {
-    throw new Error('对话不存在');
-  }
   
-  // 同步到 ES
+  // 同步到 ES - 使用增量更新
   try {
     await fastify.elasticsearch.update({
       index: 'chats',
       id: chatId,
-      doc: { status }
+      doc: { 
+        status,
+        updatedAt: new Date()
+      }
     });
+    fastify.log.info(`ES 状态更新成功: ${chatId} -> ${status}`);
   } catch (error) {
     fastify.log.error('ES 状态更新失败:', error);
+    
+    // 如果 ES 更新失败，尝试重新索引整个文档
+    try {
+      if (chat) {
+        const chatDoc = chat.toObject() as any;
+        delete chatDoc._id;
+        delete chatDoc.__v;
+        
+        await fastify.elasticsearch.index({
+          index: 'chats',
+          id: chatId,
+          document: chatDoc
+        });
+        fastify.log.info(`ES 重新索引成功: ${chatId}`);
+      }
+    } catch (reindexError) {
+      fastify.log.error('ES 重新索引也失败:', reindexError);
+    }
+  }
+  
+  return chat;
+}
+
+// 新增：专门用于添加消息的增量更新函数
+export async function addMessageToChat(chatId: string, senderUsername: string, content: string) {
+  const chat = await Chat.findById(chatId);
+  if (!chat) {
+    throw new Error('对话不存在');
+  }
+  
+  // 根据用户名查找用户ID
+  const User = require('../models/user').default;
+  const sender = await User.findOne({ username: senderUsername });
+  if (!sender) {
+    throw new Error('发送者用户不存在');
+  }
+  
+  const senderId = sender._id.toString();
+  
+  // 验证发送者是对话参与者（通过ID验证）
+  const isParticipant = chat.questionUserId.toString() === senderId || 
+                       chat.answerUserId.toString() === senderId;
+  if (!isParticipant) {
+    throw new Error('无权限向此对话发送消息');
+  }
+  
+  // 检查对话状态
+  if (chat.status === 'completed') {
+    throw new Error('对话已结束，无法发送消息');
+  }
+  
+  const newMessage = {
+    senderId: new mongoose.Types.ObjectId(senderId),
+    senderUsername,
+    content,
+    timestamp: new Date()
+  };
+  
+  // 使用 $push 操作符进行增量更新
+  const updatedChat = await Chat.findByIdAndUpdate(
+    chatId,
+    { 
+      $push: { messages: newMessage },
+      updatedAt: new Date()
+    },
+    { new: true }
+  );
+  
+  // ES 增量更新 - 只更新消息数组和更新时间
+  if (!updatedChat) {
+    throw new Error('更新对话失败');
+  }
+  try {
+    await fastify.elasticsearch.update({
+      index: 'chats',
+      id: chatId,
+      doc: {
+        messages: updatedChat.messages,
+        updatedAt: updatedChat.updatedAt
+      }
+    });
+    fastify.log.info(`ES 消息更新成功: ${chatId}`);
+  } catch (error) {
+    fastify.log.error('ES 消息更新失败:', error);
+    
+    // 回退：重新索引整个文档
+    try {
+      const chatDoc = updatedChat.toObject() as any;
+      delete chatDoc._id;
+      delete chatDoc.__v;
+      
+      await fastify.elasticsearch.index({
+        index: 'chats',
+        id: chatId,
+        document: chatDoc
+      });
+      fastify.log.info(`ES 重新索引成功: ${chatId}`);
+    } catch (reindexError) {
+      fastify.log.error('ES 重新索引失败:', reindexError);
+    }
+  }
+  
+  return updatedChat;
+}
+
+// 获取用户完整的对话信息（包含用户详情）
+export async function getChatWithUserDetails(chatId: string) {
+  const chat = await Chat.findById(chatId)
+    .populate('questionUserId', 'username avatar email bio')
+    .populate('answerUserId', 'username avatar email bio')
+    .populate('messages.senderId', 'username avatar')
+    .lean();
+    
+  if (!chat) {
+    throw new Error('对话不存在');
   }
   
   return chat;

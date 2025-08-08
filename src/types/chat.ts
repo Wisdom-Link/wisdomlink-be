@@ -5,21 +5,23 @@ export interface ChatMessage {
 }
 
 export interface Chat {
-    _id?: string;
-    imageUrl?: string;
-    questionUserId: string; // 问问题的用户id
-    answerUserId: string;   // 答问题的用户id
-    tap?: string;
-    subject?: string;
-    status?: 'ongoing' | 'completed';
-    messages: {
-        sender: string;
-        content: string;
-        timestamp?: Date;
-    }[];
-    createdAt?: Date;
-    updatedAt?: Date;
+  _id?: string;
+  // 前端只需要传用户名，后端负责查找ID
+  questionUsername: string;
+  answerUsername: string;
+  content?: string;
+  community: string;
+  tags?: string[];
+  status?: 'ongoing' | 'completed';
+  messages: {
+    senderUsername: string;
+    content: string;
+    timestamp?: Date;
+  }[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
+
 
 export interface ChatId {
     chatId: string;

@@ -4,7 +4,7 @@ import { FastifyPluginAsync, FastifyServerOptions } from 'fastify'
 import * as userService from './services/userService'
 import * as threadService from './services/threadService'
 import * as chatService from './services/chatService'
-// import * as qiniuService from './services/qiniuService'
+import * as qiniuService from './services/qiniuService'
 
 export interface AppOptions extends FastifyServerOptions, Partial<AutoloadPluginOptions> {
 
