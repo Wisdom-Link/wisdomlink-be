@@ -1,12 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
-import { getChatsByConditions } from '../../services/chatService';
+import { getChatsByConditions, getChatStatsForUser } from '../../services/chatService';
 
 const getChatsByStatusRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get('/getChatsByStatus', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     try {
-      const { status, role } = request.query as { 
+      const { status, role, debug } = request.query as { 
         status?: 'ongoing' | 'completed'; 
         role?: 'questioner' | 'answerer';
+        debug?: string;
       };
       const user = (request as any).user;
       
@@ -16,6 +17,29 @@ const getChatsByStatusRoute: FastifyPluginAsync = async (fastify) => {
           code: 'UNAUTHORIZED'
         });
       }
+
+      // 获取用户名，如果没有username则通过userId查找
+      let username = user.username || user.name;
+      if (!username && user.userId) {
+        try {
+          const User = require('../../models/user').default;
+          const userDoc = await User.findById(user.userId).select('username').lean();
+          if (userDoc) {
+            username = userDoc.username;
+          }
+        } catch (error) {
+          fastify.log.error('查找用户名失败:', error);
+        }
+      }
+
+      fastify.log.info('=== 路由层用户信息 ===', {
+        user: {
+          id: user.id || user._id || user.userId,
+          username: username,
+          originalUser: user
+        },
+        query: { status, role, debug }
+      });
 
       // 参数验证
       if (status && !['ongoing', 'completed'].includes(status)) {
@@ -32,6 +56,27 @@ const getChatsByStatusRoute: FastifyPluginAsync = async (fastify) => {
         });
       }
 
+      // 如果有debug参数，返回用户统计信息
+      if (debug === 'true') {
+        if (!username) {
+          return reply.status(400).send({
+            success: false,
+            message: '无法获取用户名',
+            code: 'MISSING_USERNAME'
+          });
+        }
+        const stats = await getChatStatsForUser(username);
+        return reply.status(200).send({
+          success: true,
+          debug: true,
+          userStats: stats,
+          user: {
+            id: user.id || user._id || user.userId,
+            username: username
+          }
+        });
+      }
+
       // 使用合并后的函数
       const chats = await getChatsByConditions(user, { status, role });
       
@@ -44,8 +89,8 @@ const getChatsByStatusRoute: FastifyPluginAsync = async (fastify) => {
           role: role || 'all'
         },
         user: {
-          id: user.id || user._id,
-          username: user.username
+          id: user.id || user._id || user.userId,
+          username: username
         }
       });
     } catch (error: any) {
