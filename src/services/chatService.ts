@@ -616,3 +616,45 @@ export async function getChatStatsForUser(username: string) {
   }
 }
 
+// 删除复杂的评价逻辑，替换为简单的计数更新
+export async function evaluateUser(data: {
+  username: string;
+  rating: 'excellent' | 'good' | 'average' | 'poor';
+}) {
+  const { username, rating } = data;
+  
+  // 查找用户
+  const User = require('../models/user').default;
+  const user = await User.findOne({ username });
+  if (!user) {
+    throw new Error(`用户不存在: ${username}`);
+  }
+  
+  // 更新用户计数
+  const updateData: any = {
+    $inc: { answerCount: 1 }
+  };
+  
+  // 如果是优秀评价，同时增加高质量回答计数
+  if (rating === 'excellent') {
+    updateData.$inc.highQualityAnswerCount = 1;
+  }
+  
+  const updatedUser = await User.findByIdAndUpdate(user._id, updateData, { new: true });
+  
+  fastify.log.info('用户评价更新成功:', {
+    username,
+    rating,
+    newAnswerCount: updatedUser.answerCount,
+    newHighQualityCount: updatedUser.highQualityAnswerCount
+  });
+  
+  return {
+    message: `用户 ${username} 的计数已更新`,
+    stats: {
+      answerCount: updatedUser.answerCount,
+      highQualityAnswerCount: updatedUser.highQualityAnswerCount,
+      isExcellent: rating === 'excellent'
+    }
+  };
+}

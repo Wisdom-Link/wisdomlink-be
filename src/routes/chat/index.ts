@@ -7,6 +7,8 @@ import getChatsByStatusRoute from './getChatsByStatus'; // 这个路由现在处
 import updateChatStatusRoute from './updateChatStatus';
 import addMessageRoute from './addMessage';
 import debugChatsRoute from './debugChats';
+import getChatWithDetailsRoute from './getChatWithDetails';
+import evaluateUserRoute from './evaluateUser';
 
 const chatRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.register(getChatRoute);
@@ -17,6 +19,8 @@ const chatRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.register(updateChatStatusRoute);
   fastify.register(addMessageRoute);
   fastify.register(debugChatsRoute);
+  fastify.register(getChatWithDetailsRoute);
+  fastify.register(evaluateUserRoute); // 简单的用户评价接口
 };
 
 export default chatRoutes;

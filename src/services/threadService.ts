@@ -68,19 +68,26 @@ export async function saveThread(data: any) {
     content,
     user: user._id,
     username,
-    userAvatar: userAvatar || user.avatar || '', // 优先使用前端传来的头像，其次用用户默认头像
+    userAvatar: userAvatar || user.avatar || '',
     community,
     location: location || '',
     tags: tags || [],
-    createdAt: createdAt ? new Date(createdAt) : new Date() // 使用前端传来的时间或当前时间
+    createdAt: createdAt ? new Date(createdAt) : new Date()
   })
   
   await thread.save()
   
-  // 更新用户的 posts 数组
+  // 更新用户的 posts 数组和 questionCount 计数
   await User.findByIdAndUpdate(user._id, {
-    $push: { posts: thread._id }
+    $push: { posts: thread._id },
+    $inc: { questionCount: 1 }  // 增加提问计数
   })
+  
+  fastify.log.info('用户发帖成功，questionCount +1:', { 
+    username, 
+    threadId: thread._id.toString(),
+    newQuestionCount: user.questionCount + 1
+  });
   
   // 同步到 ES - 不包含 _id 字段
   try {
