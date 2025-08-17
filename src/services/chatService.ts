@@ -8,7 +8,7 @@ export function setFastifyInstance(f: FastifyInstance) {
   fastify = f
   
   // 临时修复：删除有问题的索引
-  fixChatIndexes();
+  // fixChatIndexes();
   
   // 检查 ES 连接
   checkElasticsearchConnection();
@@ -61,19 +61,19 @@ async function checkElasticsearchConnection() {
   }
 }
 
-async function fixChatIndexes() {
-  try {
-    // 尝试删除有问题的索引
-    await Chat.collection.dropIndex('chatId_1');
-    fastify.log.info('成功删除有问题的 chatId 索引');
-  } catch (error: any) {
-    if (error.code === 27) {
-      fastify.log.info('chatId 索引不存在，无需删除');
-    } else {
-      fastify.log.error('删除 chatId 索引失败:', error);
-    }
-  }
-}
+// async function fixChatIndexes() {
+//   try {
+//     // 尝试删除有问题的索引
+//     await Chat.collection.dropIndex('chatId_1');
+//     fastify.log.info('成功删除有问题的 chatId 索引');
+//   } catch (error: any) {
+//     if (error.code === 27) {
+//       fastify.log.info('chatId 索引不存在，无需删除');
+//     } else {
+//       fastify.log.error('删除 chatId 索引失败:', error);
+//     }
+//   }
+// }
 
 export async function saveChat(chatData: ChatType) {
   let chat = chatData._id ? await Chat.findById(chatData._id) : null
@@ -642,11 +642,26 @@ export async function evaluateUser(data: {
   
   const updatedUser = await User.findByIdAndUpdate(user._id, updateData, { new: true });
   
+  // 检查并更新用户等级
+  const newLevel = calculateUserLevel(updatedUser.highQualityAnswerCount);
+  if (newLevel !== updatedUser.level) {
+    await User.findByIdAndUpdate(user._id, { level: newLevel });
+    updatedUser.level = newLevel;
+    
+    fastify.log.info('用户等级升级:', {
+      username,
+      oldLevel: user.level,
+      newLevel,
+      highQualityAnswerCount: updatedUser.highQualityAnswerCount
+    });
+  }
+  
   fastify.log.info('用户评价更新成功:', {
     username,
     rating,
     newAnswerCount: updatedUser.answerCount,
-    newHighQualityCount: updatedUser.highQualityAnswerCount
+    newHighQualityCount: updatedUser.highQualityAnswerCount,
+    level: updatedUser.level
   });
   
   return {
@@ -654,7 +669,20 @@ export async function evaluateUser(data: {
     stats: {
       answerCount: updatedUser.answerCount,
       highQualityAnswerCount: updatedUser.highQualityAnswerCount,
-      isExcellent: rating === 'excellent'
+      level: updatedUser.level,
+      isExcellent: rating === 'excellent',
+      levelUp: newLevel !== user.level
     }
   };
+}
+
+// 计算用户等级的函数
+function calculateUserLevel(highQualityAnswerCount: number): number {
+  if (highQualityAnswerCount >= 10) {
+    return 3;
+  } else if (highQualityAnswerCount >= 5) {
+    return 2;
+  } else {
+    return 1;
+  }
 }

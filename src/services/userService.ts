@@ -19,7 +19,7 @@ export async function registerUser(data: UserRegisterBody) {
   const newUser = new User({
     username,
     password: hashedPassword,
-    avatar: 'http://szsykcdad.hn-bkt.clouddn.com/avatar/%E9%BB%98%E8%AE%A4123456789.png'
+    avatar: 'http://wisdomlink-img.marswu23.cn/avatar/%E9%BB%98%E8%AE%A4123456789.png'
   })
   await newUser.save()
   // 同步到 ES
@@ -56,18 +56,55 @@ export async function loginUser(username: string, password: string) {
 export async function getUserInfo(userId: string): Promise<userInfo> {
   const user = await User.findById(userId).lean()
   if (!user) throw new Error('用户不存在')
+  
+  // 检查并更新用户等级
+  const newLevel = calculateUserLevel(user.highQualityAnswerCount || 0)
+  if (newLevel !== user.level) {
+    // 更新数据库中的用户等级
+    await User.findByIdAndUpdate(userId, { level: newLevel })
+    
+    // 同步到 ES
+    try {
+      await fastify.elasticsearch.update({
+        index: 'users',
+        id: userId,
+        doc: { level: newLevel }
+      })
+      fastify.log.info('用户等级自动升级:', { 
+        userId, 
+        username: user.username,
+        oldLevel: user.level, 
+        newLevel,
+        highQualityAnswerCount: user.highQualityAnswerCount 
+      });
+    } catch (error) {
+      fastify.log.error('用户等级ES同步失败:', error);
+    }
+  }
+  
   return {
     username: user.username,
     motto: user.motto || '',
     avatar: user.avatar || '',
     taps: user.taps || [],
-    level: user.level || 1,
+    level: newLevel, // 返回最新的等级
     questionCount: user.questionCount || 0,
     answerCount: user.answerCount || 0,
     highQualityAnswerCount: user.highQualityAnswerCount || 0,
     questionChats: (user.questionChats || []).map((id: any) => id.toString()),
     answerChats: (user.answerChats || []).map((id: any) => id.toString()),
     posts: (user.posts || []).map((id: any) => id.toString())
+  }
+}
+
+// 新增：计算用户等级的函数
+function calculateUserLevel(highQualityAnswerCount: number): number {
+  if (highQualityAnswerCount >= 10) {
+    return 3;
+  } else if (highQualityAnswerCount >= 5) {
+    return 2;
+  } else {
+    return 1;
   }
 }
 
